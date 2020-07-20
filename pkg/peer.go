@@ -67,7 +67,9 @@ func NewPeer(offer webrtc.SessionDescription) (*Peer, error) {
 			return
 		}
 
-		go p.sendRTCP(recv)
+		if recv.Track().Kind() == webrtc.RTPCodecTypeVideo {
+			go p.sendRTCP(recv)
+		}
 
 		p.routersLock.Lock()
 		p.routers[recv.Track().SSRC()] = NewRouter(recv)
@@ -103,23 +105,40 @@ func NewPeer(offer webrtc.SessionDescription) (*Peer, error) {
 func (p *Peer) Answer(offer webrtc.SessionDescription) (webrtc.SessionDescription, error) {
 	err := p.pc.SetRemoteDescription(offer)
 	if err != nil {
-		log.Errorf("Publish error: p.pc.SetRemoteDescription %v", err)
+		log.Errorf("Answer error: p.pc.SetRemoteDescription %v", err)
 		return webrtc.SessionDescription{}, err
 	}
 
 	answer, err := p.pc.CreateAnswer(nil)
 	if err != nil {
-		log.Errorf("Publish error: p.pc.CreateAnswer answer=%v err=%v", answer, err)
+		log.Errorf("Answer error: p.pc.CreateAnswer answer=%v err=%v", answer, err)
 		return webrtc.SessionDescription{}, err
 	}
 
 	err = p.pc.SetLocalDescription(answer)
 	if err != nil {
-		log.Errorf("Publish error: p.pc.SetLocalDescription answer=%v err=%v", answer, err)
+		log.Errorf("Answer error: p.pc.SetLocalDescription answer=%v err=%v", answer, err)
 		return webrtc.SessionDescription{}, err
 	}
 
 	return answer, nil
+}
+
+// Offer ..
+func (p *Peer) Offer() (webrtc.SessionDescription, error) {
+	offer, err := p.pc.CreateOffer(nil)
+	if err != nil {
+		log.Errorf("Offer error: p.pc.CreateOffer %v", err)
+		return webrtc.SessionDescription{}, err
+	}
+
+	err = p.pc.SetLocalDescription(offer)
+	if err != nil {
+		log.Errorf("Offer error: p.pc.SetLocalDescription offer=%v err=%v", offer, err)
+		return webrtc.SessionDescription{}, err
+	}
+
+	return offer, nil
 }
 
 // OnClose is called when the peer is closed
@@ -189,7 +208,7 @@ func (p *Peer) ID() string {
 
 // GetStats returns string formatted peer stats
 func (p *Peer) GetStats() string {
-	info := fmt.Sprintf("\n----peer %s----\n", p.id)
+	info := fmt.Sprintf("peer: %s\n", p.id)
 
 	p.routersLock.RLock()
 	for ssrc, router := range p.routers {
@@ -229,8 +248,11 @@ func (p *Peer) sendRTCP(recv Receiver) {
 		pkt, err := recv.ReadRTCP()
 		if err != nil {
 			// TODO: do something
+			log.Errorf("Error reading RTCP %s", err)
+			continue
 		}
-		// log.Tracef("sendRTCP %v", pkt)
+
+		log.Tracef("sendRTCP %v", pkt)
 		p.pc.WriteRTCP([]rtcp.Packet{pkt})
 	}
 }

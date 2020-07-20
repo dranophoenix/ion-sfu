@@ -4,7 +4,7 @@ import (
 	"io"
 
 	"github.com/pion/ion-sfu/pkg/log"
-	"github.com/pion/ion-sfu/pkg/rtc/plugins"
+	"github.com/pion/ion-sfu/pkg/plugins"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v2"

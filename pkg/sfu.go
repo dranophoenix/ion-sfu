@@ -85,7 +85,7 @@ func NewSFU(config Config) *SFU {
 }
 
 // Connect a webrtc stream
-func (s *SFU) Connect(offer webrtc.SessionDescription) (*Peer, *webrtc.SessionDescription, error) {
+func (s *SFU) Connect(offer webrtc.SessionDescription) (*Peer, webrtc.SessionDescription, error) {
 	peer, err := NewPeer(offer)
 	peer.OnClose(func() {
 		s.peerLock.Lock()
@@ -101,20 +101,20 @@ func (s *SFU) Connect(offer webrtc.SessionDescription) (*Peer, *webrtc.SessionDe
 
 	answer, err := peer.Answer(offer)
 	if err != nil {
-		log.Errorf("Publish error: pc.CreateAnswer answer=%v err=%v", answer, err)
-		return nil, nil, err
+		log.Errorf("Connect error: pc.CreateAnswer answer=%v err=%v", answer, err)
+		return nil, webrtc.SessionDescription{}, err
 	}
 
 	s.peerLock.Lock()
 	s.peers[peer.id] = peer
 	s.peerLock.Unlock()
 
-	log.Debugf("Publish: answer => %v", answer)
-	return peer, &answer, nil
+	log.Debugf("Connect answer => %v", answer)
+	return peer, answer, nil
 }
 
 // Subscribe adds a track to a peer
-func (s *SFU) Subscribe(pid string, ssrcs []uint32) {
+func (s *SFU) Subscribe(pid string, ssrcs []uint32) (webrtc.SessionDescription, error) {
 	s.peerLock.RLock()
 	to := s.peers[pid]
 	s.peerLock.RUnlock()
@@ -150,6 +150,15 @@ func (s *SFU) Subscribe(pid string, ssrcs []uint32) {
 		// Attach sender to source
 		router.AddSub(pid, sender)
 	}
+
+	// Create updated offer
+	offer, err := to.Offer()
+	if err != nil {
+		log.Errorf("Error creating offer")
+		return webrtc.SessionDescription{}, errCreateOfferFailed
+	}
+
+	return offer, nil
 }
 
 func (s *SFU) stats() {

@@ -164,7 +164,7 @@ func (s *server) Signal(stream pb.SFU_SignalServer) error {
 
 		switch payload := in.Payload.(type) {
 		case *pb.SignalRequest_Connect:
-			var answer *webrtc.SessionDescription
+			var answer webrtc.SessionDescription
 			log.Infof("signal->connect called: %v", payload.Connect)
 
 			peer, answer, err = node.Connect(webrtc.SessionDescription{

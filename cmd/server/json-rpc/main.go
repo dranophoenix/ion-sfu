@@ -9,8 +9,8 @@ import (
 	"net/rpc/jsonrpc"
 	"os"
 
+	sfu "github.com/pion/ion-sfu/pkg"
 	"github.com/pion/ion-sfu/pkg/log"
-	sfu "github.com/pion/ion-sfu/pkg/node"
 	"github.com/pion/webrtc/v2"
 	"github.com/spf13/viper"
 	"golang.org/x/net/websocket"
@@ -81,56 +81,62 @@ func parse() bool {
 }
 
 // RPC defines the json-rpc
-type RPC struct{}
+type RPC struct {
+	sfu *sfu.SFU
+}
 
-// PublishRequest defines a json-rpc request to publish a stream
-type PublishRequest struct {
-	Rid   string
+// NewRPC
+func NewRPC() *RPC {
+	return &RPC{
+		sfu: sfu.NewSFU(conf),
+	}
+}
+
+// ConnectRequest defines a json-rpc request to connect a stream
+type ConnectRequest struct {
 	Offer webrtc.SessionDescription
 }
 
-// PublishReply defines a json-rpc reply to a publish request
-type PublishReply struct {
-	Mid    string
+// ConnectReply defines a json-rpc reply to a connect request
+type ConnectReply struct {
+	Pid    string
 	Answer webrtc.SessionDescription
 }
 
-// Publish a stream to the sfu
-func (r *RPC) Publish(req *PublishRequest, resp *PublishReply) error {
-	log.Infof("Got publish request: %v", req)
-	mid, _, answer, err := sfu.Publish(req.Offer)
+// Connect a stream to the sfu
+func (r *RPC) Connect(req *ConnectRequest, resp *ConnectReply) error {
+	log.Infof("Got connect request: %v", req)
+	peer, answer, err := r.sfu.Connect(req.Offer)
 	if err != nil {
 		return err
 	}
 
-	resp.Mid = mid
-	resp.Answer = *answer
+	resp.Pid = peer.ID()
+	resp.Answer = answer
 
 	return nil
 }
 
 // SubscribeRequest defines a json-rpc request to publish a stream
 type SubscribeRequest struct {
-	Mid   string
-	Offer webrtc.SessionDescription
+	Pid   string
+	Ssrcs []uint32
 }
 
 // SubscribeReply defines a json-rpc reply to a publish request
 type SubscribeReply struct {
-	Mid    string
-	Answer webrtc.SessionDescription
+	Offer webrtc.SessionDescription
 }
 
 // Subscribe a stream to the sfu
 func (r *RPC) Subscribe(req *SubscribeRequest, resp *SubscribeReply) error {
 	log.Infof("Got subscribe request: %v", req)
-	mid, _, answer, err := sfu.Subscribe(req.Mid, req.Offer)
+	offer, err := r.sfu.Subscribe(req.Pid, req.Ssrcs)
 	if err != nil {
 		return err
 	}
 
-	resp.Mid = mid
-	resp.Answer = *answer
+	resp.Offer = offer
 
 	return nil
 }
@@ -141,9 +147,9 @@ func main() {
 		os.Exit(-1)
 	}
 
-	sfu.Init(conf)
 	log.Infof("--- Starting SFU Node ---")
-	err := rpc.Register(new(RPC))
+	sfurpc := NewRPC()
+	err := rpc.Register(sfurpc)
 	if err != nil {
 		panic(err)
 	}

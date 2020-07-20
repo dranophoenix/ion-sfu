@@ -11,8 +11,9 @@ service SFU {
 message SignalRequest {
     oneof payload {
         SessionDescription connect = 1;
-        Trickle trickle = 2;
-        Subscribe subscribe = 3;
+        SessionDescription negotiate = 2;
+        Trickle trickle = 3;
+        Subscribe subscribe = 4;
     }
 }
 
