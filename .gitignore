@@ -19,3 +19,4 @@ cover.out
 main
 .DS_Store
 .vscode
+*.code-workspace
